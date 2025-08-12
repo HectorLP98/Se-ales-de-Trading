@@ -11,13 +11,13 @@ from GraficasPloty import * #graficar_velas, graficar_linea,
 from Std_streamlit import  * 
 
 
-
 # Configuración general
 st.set_page_config(layout="wide", page_title="Análisis Técnico")
 
 # Insert your Binance API key and secret
 API_KEY = 'tTH25XYPnXjPQnOfTHbcd8y6FGaq6QXyIUf7jbR1iisyebqq5KByMyg8KFNHgn3h'
 API_SECRET = 'fgPIxiygL5QvE5cPmopmCemxUYKQz2ThrAzFMEXz7nlPyeMcMaYnSrCHsyq62dAL'
+ruta_data = r"/home/hector/Documentos/Escuelas/Autodidacta/Git_repositories/Trading_test/Data"
 
 mercado = "Spot" # Futuros, Spot
 
@@ -86,14 +86,14 @@ with st.sidebar:
     
 # Validaciones de acceso a Binance
 try:
-    cliente = Spot(key="3bTMORx0HLuEpVuqn3gBgYzupfOVKLPS2QkFazAsFP2sLg0ktAFxbkZa76aQ4VTv", secret="tCNjEOdRFyvlKEH9usVsclEs0izi623zU26nWQRND1Huny1zqQdJ9vBQu4etfrKg")
+    cliente = Spot(key=API_KEY, secret=API_SECRET)
 except Exception as e:
     st.error("🔐 Error en autenticación con Binance. Verifica tus credenciales.")
     st.stop()
 
 # Construir nombre del archivo CSV con sufijo de intervalo
 interval_suffix = interval.lower() if isinstance(interval, str) else "unknown"
-nombre_archivo_csv = f"/home/hector/Documentos/Escuelas/Autodidacta/Git_repositories/Trading_test/Data/Analisis_simbolos_{interval_suffix}.csv"
+nombre_archivo_csv = f"{ruta_data}/Analisis_simbolos_{interval_suffix}.csv"
 
 
 
