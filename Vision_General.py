@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 
 from GraficasPloty import * #graficar_velas, graficar_linea, 
 from Std_streamlit import  * 
+from Estrategias.Filtros_Estrategias import *
 
 
 # Configuración general
@@ -48,7 +49,7 @@ else:
 
 
 
-#simbolos = [x for x in simbolos if str(x).find("USD")>=0]
+simbolos = [x for x in simbolos if str(x).find("USD")>=0]
 #simbolos = simbolos[:10]
 indicadores_disponibles = ["Media_Movil", "Bandas Bollinger", "RSI", "MACD", "Estocastico", "Calidad PullBack"]
 
@@ -147,8 +148,8 @@ if 'df_resultado' in locals() and not df_resultado.empty:
 
     st.markdown("### 🔍 Filtros adicionales")
     patron = st.text_input("🔎 Filtrar por patrón en símbolo (ej: USD)", value="USD")
-    estrategia = st.selectbox("Estrategia", ["","MM_Estocastico"], index=0)
-    c1, c2, c3 = st.columns(3)
+    estrategia = st.selectbox("Estrategia", ["","MM_Estocastico","Mini_Max"], index=0)
+    
     
     #ascendente = st.checkbox("Orden ascendente", value=False)
 
@@ -157,35 +158,10 @@ if 'df_resultado' in locals() and not df_resultado.empty:
     if patron.strip() != "":
         df_filtrado = df_filtrado[df_filtrado["Simbolo"].str.contains(patron, case=False, na=False)]
         
-    if estrategia == "":
-        columnas = seleccionar_columnas(df_filtrado)
-        df_filtrado = df_filtrado[columnas]
-        filtros, ordenamientos = solicitar_filtros_orden(df_filtrado)
-        df_filtrado = aplicar_filtros_orden(df_filtrado, filtros, ordenamientos)
-
-
-    elif estrategia == "MM_Estocastico":
-        ver_tendencia = c1.selectbox("Tendencia", ["Alcista","Bajista"], index=0, help="Filtra por tipo de tendencia")
-        tipo_pull = c2.selectbox("Tipo Pull Back", ["Alcista","Bajista"], index=1, help="Filtra por tipo de tendencia")
-        duracionTrend = c3.number_input("Duracion Pull back",min_value=1, value=3, help="Cuanto es la duracion maxima que se muestra")
-        mostrarPctj = c1.selectbox("Columna de porcentaje", ["Diferencia_Porcentajes","Porcentaje_Alcista","Porcentaje_Bajista"], index=1, help="Muestra el tipo de columna que eligas")
-        tipo_corta,tipo_larga,periodo_corta,periodo_larga = parametros_indicadores["Media_Movil"]
-        rename = {f"DuracionTrendMM_Close_{tipo_larga}_{periodo_larga}": "Duracion_Tendencia",
-                  f"DuracionTrendMM_Close_{tipo_corta}_{periodo_corta}": "Duracion_PullBack",
-                  "Tendencia_MM":"Tendencia", f"Tendencia_PullBack":"Tipo_PullBack",
-                  "Estocastico_Senal":"Senal_Estocastico",
-                  }
-        df_filtrado.rename(columns=rename, inplace=True)
-        col_interes = ["Simbolo", "N", mostrarPctj, "%_Cumplimiento_FVG", "Ultimo_FVG_Falta", "Tipo_Vela",
-                       "Tendencia","Duracion_Tendencia","Tipo_PullBack","Duracion_PullBack","Senal_Estocastico"]
-        
-        df_filtrado = df_filtrado[col_interes] [
-                                  (df_filtrado["Duracion_PullBack"].astype(int)<=duracionTrend) &
-                                  (df_filtrado["Tendencia"].astype(str) !="Neutro") &
-                                  (df_filtrado["Tipo_PullBack"]==tipo_pull) & 
-                                  (df_filtrado["Senal_Estocastico"].astype(str) !="Neutro") &
-                                  (df_filtrado["Tendencia"]==ver_tendencia)
-        ]
+    
+    df_filtrado = Filtrar_x_estrategia(estrategia, parametros_indicadores, df_filtrado)
+    
+    
     
 
     st.markdown(f"### 📈 Resultados filtrados: {len(df_filtrado)} símbolos encontrados")

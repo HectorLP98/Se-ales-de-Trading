@@ -19,6 +19,8 @@ from Indicadores.Volatilidad import calcular_bandas_bollinger
 from Indicadores.DominioPropio import *
 
 
+ruta_data = r"/home/hector/Documentos/Escuelas/Autodidacta/Git_repositories/Señales_Trading/intarface/Datos"
+
 def diccionario_TimeFrames(interval):
     equivalencias = {
         "1M": ("1M", "1W"),
@@ -217,7 +219,7 @@ class AnalizadorIndicadores:
                                                                          "Tendencia_PullBack",f"DuracionTrendMM_Close_{self.tipo_corta}_{self.periodo_corta}"]].to_dict()
             
         if "Bandas Bollinger" in self.indicadores:
-            columna_precio, ventana, num_std = dict_parametros["Bandas Bollinger"]
+            columna_precio, ventana, num_std = self.dict_parametros["Bandas Bollinger"]
             self.df_resultado = calcular_bandas_bollinger(
                 self.df_resultado,
                 columna_precio,
@@ -1114,7 +1116,7 @@ def obtener_parametros_globales_MF():
 
 def cargar_df_existente(intervalo):
     interval_suffix = intervalo.lower()
-    path = f"/home/hector/Documentos/Escuelas/Autodidacta/Git_repositories/Trading_test/Data/Analisis_simbolos_{interval_suffix}.csv"
+    path = f"{ruta_data}/Analisis_simbolos_{interval_suffix}.csv"
 
     if os.path.exists(path):
         df = pd.read_csv(path)
@@ -1151,7 +1153,7 @@ def forzar_actualizacion_dataframes(simbolos, dict_grl_frame, cliente, dict_para
             actualizados = []
             for tf, (fecha_inicio, excluir_final, rango_analisis) in dict_grl_frame.items():
                 df = analizar_simbolos(
-                    simbolos[:5],  # Limita la muestra
+                    simbolos,  # Limita la muestra
                     cliente, 
                     tf, 
                     fecha_inicio, 
@@ -1161,7 +1163,7 @@ def forzar_actualizacion_dataframes(simbolos, dict_grl_frame, cliente, dict_para
                 if df is not df.empty:
                     # Guardar con sufijo y fecha
                     interval_suffix = tf.lower() if isinstance(tf, str) else "unknown"
-                    nombre_archivo_csv = f"/home/hector/Documentos/Escuelas/Autodidacta/Git_repositories/Trading_test/Data/Analisis_simbolos_{interval_suffix}.csv"
+                    nombre_archivo_csv = f"{ruta_data}/Analisis_simbolos_{interval_suffix}.csv"
                     fecha_actual = datetime.now().strftime("%Y%m%d_%H%M")
                     nombre_guardado = f"analisis_simbolos_{interval_suffix}_{fecha_actual}.csv"
                     df.to_csv(nombre_archivo_csv, index=False)

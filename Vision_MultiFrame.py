@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 
 
 # Añadir rutas personalizadas
-sys.path.append('/home/hector/Documentos/Escuelas/Autodidacta/Git_repositories/Trading_test')
+#sys.path.append('/home/hector/Documentos/Escuelas/Autodidacta/Git_repositories/Trading_test')
 
 
 from GraficasPloty import * #graficar_velas, graficar_linea, 
@@ -42,7 +42,7 @@ indicadores_disponibles = ["Media_Movil", "Bandas Bollinger", "RSI", "MACD", "Es
 
 # Validaciones de acceso a Binance
 try:
-    cliente = Spot(key="3bTMORx0HLuEpVuqn3gBgYzupfOVKLPS2QkFazAsFP2sLg0ktAFxbkZa76aQ4VTv", secret="tCNjEOdRFyvlKEH9usVsclEs0izi623zU26nWQRND1Huny1zqQdJ9vBQu4etfrKg")
+    cliente = Spot(key=API_KEY, secret=API_SECRET)
 except Exception as e:
     st.error("🔐 Error en autenticación con Binance. Verifica tus credenciales.")
     st.stop()
@@ -54,11 +54,14 @@ with st.sidebar:
     dict_grl_frame = obtener_parametros_globales_MF()
     timeframes = dict_grl_frame.keys()
 
-st.write(dict_grl_frame)
+
 st.markdown(f"**Timeframes a analizar:** {', '.join(timeframes)}")
 
 # Seleccion de indicadores
 parametros_indicadores = Solicita_Parametros_Indicadores()
+
+# Forzar actualización manual 
+forzar_actualizacion_dataframes(simbolos_spot[:5], dict_grl_frame, cliente, parametros_indicadores)
 
 # Diccionario con los DataFrames
 dataframes_por_tf = {}
@@ -69,9 +72,6 @@ for tf in timeframes:
     if df is not None:
         dataframes_por_tf[f"df_{tf}"] = df
 
-# Forzar actualización manual si ya hay datos cargados
-if dataframes_por_tf:
-    forzar_actualizacion_dataframes(simbolos_spot[:5], dict_grl_frame, cliente, parametros_indicadores)
     
     
 # Si faltan archivos, ofrecer generar solo los que faltan
@@ -79,13 +79,7 @@ faltantes = [tf for tf in timeframes if f"df_{tf}" not in dataframes_por_tf]
 
 if faltantes:
     st.warning(f"⚠️ No hay datos para: {', '.join(faltantes)}")
-    if st.button("🔄 Ejecutar análisis SOLO para los faltantes"):
-        with st.spinner("Descargando y generando análisis..."):
-            for tf in faltantes:
-                _, path, _ = cargar_df_existente(simbolo, tf)  # solo para obtener el path
-                df = generar_df_nuevo(simbolo, tf, fecha_inicio, rango_analisis, parametros_indicadores, cliente, path)
-                if not df.empty:
-                    dataframes_por_tf[f"df_{tf}"] = df
+    
 
 # Toma solo uno de los DataFrames (por ejemplo el primero)
 df_referencia = list(dataframes_por_tf.values())[0]
@@ -107,7 +101,7 @@ def filtro_TimeFrame_Mayor(df, dict_parametros):
                 "Estocastico_Senal": "Senal_Estocastico",
             }
     df.rename(columns=rename, inplace=True)
-
+    
     # Filtro para confirmar tendencia alcista o bajista corta
     df = df[
         (df["Tendencia"] == "Alcista") |
