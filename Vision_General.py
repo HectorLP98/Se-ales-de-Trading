@@ -18,7 +18,7 @@ st.set_page_config(layout="wide", page_title="Análisis Técnico")
 # Insert your Binance API key and secret
 API_KEY = 'tTH25XYPnXjPQnOfTHbcd8y6FGaq6QXyIUf7jbR1iisyebqq5KByMyg8KFNHgn3h'
 API_SECRET = 'fgPIxiygL5QvE5cPmopmCemxUYKQz2ThrAzFMEXz7nlPyeMcMaYnSrCHsyq62dAL'
-ruta_data = r"/home/hector/Documentos/Escuelas/Autodidacta/Git_repositories/Trading_test/Data"
+ruta_data = r"/home/hector/Documentos/Escuelas/Autodidacta/Git_repositories/Señales_Trading/intarface/Datos"
 
 mercado = "Spot" # Futuros, Spot
 
@@ -48,8 +48,9 @@ else:
 
 
 
-
-simbolos = [x for x in simbolos if str(x).find("USD")>=0]
+patron = st.text_input("🔎 Filtrar por patrón en símbolo (ej: USD)", value="USDT")
+if patron.strip() != "":
+    simbolos = [x for x in simbolos if str(x).find(patron)>=0]
 #simbolos = simbolos[:10]
 indicadores_disponibles = ["Media_Movil", "Bandas Bollinger", "RSI", "MACD", "Estocastico", "Calidad PullBack"]
 
@@ -147,7 +148,6 @@ if st.button("🔄 Ejecutar análisis"):
 if 'df_resultado' in locals() and not df_resultado.empty:
 
     st.markdown("### 🔍 Filtros adicionales")
-    patron = st.text_input("🔎 Filtrar por patrón en símbolo (ej: USD)", value="USD")
     estrategia = st.selectbox("Estrategia", ["","MM_Estocastico","Mini_Max"], index=0)
     
     
@@ -155,22 +155,34 @@ if 'df_resultado' in locals() and not df_resultado.empty:
 
     # Aplicar filtros
     df_filtrado = df_resultado.copy()
-    if patron.strip() != "":
-        df_filtrado = df_filtrado[df_filtrado["Simbolo"].str.contains(patron, case=False, na=False)]
-        
     
-    df_filtrado = Filtrar_x_estrategia(estrategia, parametros_indicadores, df_filtrado)
+    tab1, tab2, tab3, tab4 = st.tabs([ "🗃 Datos", "📈 Chart","📊 Estadísticas", "📉 Correlación"])
     
-    
-    
+    with tab1:
+        # Datos
+        df_filtrado = Filtrar_x_estrategia(estrategia, parametros_indicadores, df_filtrado)
+        st.markdown(f"### 📈 Resultados filtrados: {len(df_filtrado)} símbolos encontrados")
+        st.metric(
+            label="🕒 Última actualización",
+            value=ultima_modificacion
+        )
+        #st.write(df_filtrado)
+        st.dataframe(df_filtrado)
 
-    st.markdown(f"### 📈 Resultados filtrados: {len(df_filtrado)} símbolos encontrados")
-    st.metric(
-        label="🕒 Última actualización",
-        value=ultima_modificacion
-    )
-    #st.write(df_filtrado)
-    st.dataframe(df_filtrado)
+    with tab2:# Mostrar gráficos en Streamlit
+        top = st.number_input("Cuántos símbolos mostrar en gráficos?", min_value=1, max_value=50, value=20)
+        fig, simbolo_bar = plot_top_bottom_volumen(df_filtrado, col_use="Volumen_acum", top_n=top)
+        st.pyplot(fig)
+        
+        # Ejemplo de uso en streamlit
+        fig, simbol_heatmap = plot_volumen_heatmap(df_filtrado, col_use="Volumen", top_n=top)
+        st.plotly_chart(fig, use_container_width=True)
+        # Ejemplo de uso
+        # Ejemplo: mostrar burbujas con volumen normal
+        inner_simbol = set(simbolo_bar).intersection(set(simbol_heatmap))
+        fig = plot_volumen_bubbles(df_filtrado[df_filtrado["Simbolo"].isin(inner_simbol)], col_use="Volumen", top_n=top)
+        st.plotly_chart(fig, use_container_width=True)
+
 
     # Botón de descarga
     csv = df_filtrado.to_csv(index=False).encode("utf-8")

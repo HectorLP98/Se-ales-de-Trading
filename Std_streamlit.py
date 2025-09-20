@@ -17,6 +17,7 @@ from Indicadores.Direccion import Medias_Moviles, calcular_MACD
 from Indicadores.Momento import *
 from Indicadores.Volatilidad import calcular_bandas_bollinger
 from Indicadores.DominioPropio import *
+from Estrategias.Busqueda_entry import *
 
 
 ruta_data = r"/home/hector/Documentos/Escuelas/Autodidacta/Git_repositories/Señales_Trading/intarface/Datos"
@@ -189,6 +190,12 @@ class AnalizadorIndicadores:
         """
         Genera indicadores en base a la lista de indicadores seleccionados.
         """
+        
+        # Creamos la columna de entrada y salida
+        #self.df_resultado["Entrada_Trade"] = greedy_trades(self.df_resultado["Close"].values)
+        #self.df_resultado["Entrada_Trade"] = greedy_trades_tp_sl(self.df_resultado["Close"], tp=0.03, sl=0.01, t_max=30)
+        self.df_resultado["Entrada_Trade"] = greedy_trades_trailing(self.df_resultado["Close"], tp=0.10, sl=0.03, trailing=0.05)
+        
         if "Media_Movil" in self.indicadores:
             # Parametros
             self.tipo_corta,self.tipo_larga,self.periodo_corta,self.periodo_larga = self.dict_parametros["Media_Movil"]
@@ -642,10 +649,7 @@ class AnalizadorVelas:
 
             #if fecha_actual in df_filtrado.index:
             self._detectar_fvg(i)
-            self._verificar_testeo_fvg(i)
-            
-            
-            
+            self._verificar_testeo_fvg(i)          
             
             if fecha_actual >= fecha_inicio_ruptura:
                 self._contar_rupturas(i, min_low, max_high)
@@ -710,6 +714,8 @@ def analizar_simbolos(simbolos_spot, cliente, interval, fecha_inicio, rango_anal
             fila = {
                 "Simbolo": simbolo,
                 "N": df_mayor.shape[0],
+                "Volumen_acum": df_mayor["Volumne"].sum(),
+                "Volumen": df_mayor["Volumne"].values[-1],
                 "Tipo_Vela": ultimos_3_velas,
                 "Cantidad_FVGs": len(dict_grl["FVGs"].keys()),
                 "N_FVGs_Falta":dict_grl["FVGs_no_tocadas"]["total_no_tocadas"] ,
@@ -1024,7 +1030,7 @@ def Solicita_Parametros_Indicadores():
             "Periodo media corta",
             min_value=1,
             max_value=500,
-            value=9,
+            value=20,
             help="Define cuántos periodos usará la media móvil corta."
         )
 
@@ -1032,7 +1038,7 @@ def Solicita_Parametros_Indicadores():
             "Periodo media larga",
             min_value=1,
             max_value=500,
-            value=30,
+            value=200,
             help="Define cuántos periodos usará la media móvil larga."
         )
         parametros_indicadores["Media_Movil"] = (tipo_corta, tipo_larga, periodo_corta, periodo_larga)
@@ -1172,3 +1178,26 @@ def forzar_actualizacion_dataframes(simbolos, dict_grl_frame, cliente, dict_para
             
 
 
+
+def ordenar_columnas(cols):
+    # Siempre primero "Simbolo"
+    ordenadas = ["Simbolo"]
+
+    # Sacamos Simbolo para no duplicar
+    otras = [c for c in cols if c != "Simbolo"]
+
+    # Agrupamos por el prefijo (parte antes del "_")
+    prefijos = {}
+    for c in otras:
+        if "_" in c:
+            prefijo, sufijo = c.rsplit("_", 1)
+            prefijos.setdefault(prefijo, []).append((sufijo, c))
+        else:
+            prefijos.setdefault(c, []).append(("", c))
+
+    # Para cada prefijo, ponemos menor → mayor
+    for prefijo, lista in prefijos.items():
+        lista_ordenada = sorted(lista, key=lambda x: (x[0] != "menor", x[0]))
+        ordenadas.extend([col for _, col in lista_ordenada])
+
+    return ordenadas

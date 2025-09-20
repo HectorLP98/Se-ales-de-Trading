@@ -7,9 +7,10 @@ from binance.spot import Spot
 from binance.client import Client
 
 from GraficasPloty import * #graficar_velas, graficar_linea, 
-from Std_streamlit import  preparar_dataset, AnalizadorVelas, Poner_Indicadores, Solicita_Parametros_Indicadores, AnalizadorIndicadores
+from Std_streamlit import  preparar_dataset,  Poner_Indicadores, Solicita_Parametros_Indicadores, AnalizadorIndicadores
 from Indicadores.DominioPropio import detectar_swing_points, Contar_FVGs
-
+from Inputs.Simbolos import Obtener_Simbolos_Binance
+from Indicadores.AccioPrecio import AnalizadorVelas
 
 # Configuración general
 st.set_page_config(layout="wide", page_title="Análisis Técnico")
@@ -21,18 +22,7 @@ API_SECRET = 'fgPIxiygL5QvE5cPmopmCemxUYKQz2ThrAzFMEXz7nlPyeMcMaYnSrCHsyq62dAL'
 # Initialize Binance client
 client = Client(API_KEY, API_SECRET)
 
-# Simbolos disponibles
-symbols_Binance_Futuros = [symbol['symbol'] for symbol in client.futures_exchange_info()['symbols'] if symbol['contractType'] == 'PERPETUAL']
-
-# Obtener toda la información del exchange
-exchange_info = client.get_exchange_info()
-
-# Filtrar solo los símbolos activos del mercado spot
-simbolos_spot = [
-    s["symbol"]
-    for s in exchange_info["symbols"]
-    if s["status"] == "TRADING" and s["isSpotTradingAllowed"]
-]
+simbolos_spot = Obtener_Simbolos_Binance(client)
 # Sidebar
 with st.sidebar:
     col1, col2 = st.columns(2)
@@ -47,7 +37,7 @@ with st.sidebar:
     }
 
     simbol = st.selectbox("Símbolo 1", symbols, index=symbols.index("BTCUSDT"))
-    # simbol2 = st.selectbox("Símbolo 2", symbols, index=symbols.index("ETHUSDT") if "ETHUSDT" in symbols else 1)
+    
     interval_mayor = col1.selectbox("Intervalo H", ("1m","5m","15m","30m","1h","2h","4h","6h","8h","12h","1d","3d","1W","1M"), index=10)
     interval_menor = col2.selectbox("Intervalo L", ("1m","5m","15m","30m","1h","2h","4h","6h","8h","12h","1d","3d","1W","1M"), index=6)
     # Mostrar el resultado de la función
@@ -100,12 +90,16 @@ use_binance = 1 if simbol in dict_exchange["binance"] else 0
 df_mayor = preparar_dataset(cliente, simbol, interval_mayor, fecha_inicio, use_binance)
 analizador = AnalizadorVelas(df_mayor, rango_analisis)
 dict_grl_mayor = analizador.analizar()
+# Luego de hacer el analaizar extraigo la información generada.
+df_mayor = analizador.df_original
 #st.write(dict_grl_mayor)
 
 df_menor = preparar_dataset(cliente, simbol, interval_menor, fecha_inicio=df_mayor.shape[0], use_binance=use_binance)
 analizador2 = AnalizadorVelas(df_menor, rango_analisis)
 
 dict_grl_menor = analizador2.analizar()
+# Luego de hacer el analaizar extraigo la información generada.
+df_menor = analizador2.df_original
 
 if df_mayor is None:
     st.warning(f"⚠️ No se pudo obtener o procesar el dataset para el timeframe mayor: {interval_mayor}")
@@ -154,7 +148,7 @@ tab1, tab2, tab3, tab4 = st.tabs(["📈 Chart", "🗃 Datos", "📊 Estadística
 # Gráfico principal
 with tab1:
     # Selección tipo de gráfica
-    opcion_chart = st.selectbox('Tipo de gráfico', ['Vela', 'Línea'])
+    opcion_chart = st.selectbox('Tipo de gráfico', ['Vela', 'Línea',"Tamanio Vela"])
     # 📌 Análisis de rupturas de niveles para TimeFrame Mayor
     st.markdown(f"### ⏱️ TimeFrame Mayor: `{interval_mayor}` {df_mayor.shape[0]}registros") 
     # 📈 Gráfico mayor
@@ -172,6 +166,10 @@ with tab1:
         grafico.graficar_velas(parametros_indicadores.keys())
         if "Estocastico" in parametros_indicadores.keys(): 
             graficar_estocastico(df_mayor)
+    elif opcion_chart == 'Tamanio Vela':
+        ventana = st.slider("Ventana de Tamanio Vela", min_value=1, max_value=100, value=20, step=1)
+        grafica_tamanio_vela_interactiva(df_mayor["Tamanio_Vela"], window = ventana, title=f"Tamaño de Vela en {simbol} ({interval_mayor})")
+        grafica_tamanio_vela_interactiva(df_menor["Tamanio_Vela"], window = ventana, title=f"Tamaño de Vela en {simbol} ({interval_menor})")
     else:
         fig_mayor = graficar_linea(df_mayor, ["Close"])
     
@@ -192,7 +190,7 @@ with tab1:
 
 # Tabla
 with tab2:
-    
+    st.write(df_mayor.columns)
     n = st.number_input("N-registros", min_value=1, value=10, help="Cuantos renglones se imprimen")
     st.write(f"Últimas 10 filas de {simbol}")
    # st.write(df_mayor.columns)

@@ -61,7 +61,7 @@ st.markdown(f"**Timeframes a analizar:** {', '.join(timeframes)}")
 parametros_indicadores = Solicita_Parametros_Indicadores()
 
 # Forzar actualización manual 
-forzar_actualizacion_dataframes(simbolos_spot[:5], dict_grl_frame, cliente, parametros_indicadores)
+forzar_actualizacion_dataframes(simbolos_spot[:], dict_grl_frame, cliente, parametros_indicadores)
 
 # Diccionario con los DataFrames
 dataframes_por_tf = {}

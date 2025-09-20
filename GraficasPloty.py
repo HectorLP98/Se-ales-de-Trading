@@ -175,6 +175,36 @@ class GraficoVelas:
             ))
         except Exception as e:
             self.obj_st.warning(f"No se pudieron graficar los swings: {e}")
+    
+    def graficar_trades(self):
+        try:
+            if "Entrada_Trade" not in self.df.columns:
+                self.obj_st.warning("No se encontró la columna 'Entrada_Trade' en el DataFrame.")
+                return
+
+            # Filtrar entradas (1)
+            df_entradas = self.df[self.df["Entrada_Trade"] == 1]
+            self.fig.add_trace(go.Scatter(
+                x=df_entradas.index,
+                y=df_entradas["Close"],
+                mode="markers",
+                marker=dict(symbol="arrow-up", color="blue", size=12),
+                name="Entrada"
+            ))
+
+            # Filtrar salidas (-1)
+            df_salidas = self.df[self.df["Entrada_Trade"] == -1]
+            self.fig.add_trace(go.Scatter(
+                x=df_salidas.index,
+                y=df_salidas["Close"],
+                mode="markers",
+                marker=dict(symbol="arrow-down", color="orange", size=12),
+                name="Salida"
+            ))
+
+        except Exception as e:
+            self.obj_st.warning(f"No se pudieron graficar las entradas/salidas: {e}")
+
             
     def graficar_medias_moviles(self, columnas_medias=[]):
         """
@@ -229,7 +259,8 @@ class GraficoVelas:
         self.graficar_velas_base()
         self.graficar_rango()
         self.graficar_fvg()
-        self.graficar_swings() 
+        #self.graficar_swings() 
+        self.graficar_trades()
         
         if "Media_Movil" in indicadores:
             self.graficar_medias_moviles()
@@ -344,17 +375,17 @@ def graficar_histograma(data,col_use, obj_st, title="Histograma Rendimientos al 
                     yaxis_title='Frecuencia')
     obj_st.plotly_chart(fig)
     
-def graficar_burbujas(data,col_use, obj_st,title="Burbuja inflacionaria"):
+def graficar_burbujas(data,col_use, title="Burbuja inflacionaria"):
     df_ordenado = data.sort_values(by=col_use, ascending=False)
     fig = go.Figure(data=[go.Scatter(
-        x=df_ordenado["symbol"], y=df_ordenado[col_use],
+        x=df_ordenado["Simbolo"], y=df_ordenado[col_use],
         mode='markers',
         marker_size=df_ordenado[col_use])
     ])
     fig.update_layout(title=title,
                     xaxis_title=f'Valor {col_use}',
                     yaxis_title='Frecuencia')
-    obj_st.plotly_chart(fig)
+    st.plotly_chart(fig)
     
 def graficar_scatter(df1,df2, cols:tuple, obj_st, title="Dispercion"):
     if df1.shape[0] == df2.shape[0] and len(cols)==2:
@@ -436,3 +467,173 @@ def plot_ichimoku_cloud(df,obj_st, title="Dispercion"):
     
     obj_st.plotly_chart(fig)
     return fig
+
+
+def grafica_tamanio_vela(serie: pd.Series, window: int = 20):
+    """
+    Visualiza en Streamlit el tamaño de las velas y su media móvil.
+    """
+    fig, ax = plt.subplots(figsize=(12, 6))
+    ax.plot(serie.index, serie.values, label="Tamaño vela", alpha=0.6)
+    ax.plot(serie.index, serie.rolling(window).mean(), 
+            label=f"Media móvil {window}", color="red", linewidth=2)
+
+    ax.set_title("Evolución del tamaño de las velas (volatilidad)")
+    ax.set_xlabel("Tiempo")
+    ax.set_ylabel("Tamaño (High - Low)")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+
+    st.pyplot(fig)
+    
+import streamlit as st
+import plotly.express as px
+import pandas as pd
+
+def grafica_tamanio_vela_interactiva(serie: pd.Series, window: int = 20,title= "Tamaño de Vela Interactiva"):
+    """
+    Visualiza en Streamlit el tamaño de las velas con Plotly interactivo.
+    """
+    df_temp = pd.DataFrame({
+        "Fecha": serie.index,
+        "Tamano_Vela": serie.values,
+        "Media_Movil": serie.rolling(window).mean().values
+    })
+
+    fig = px.line(df_temp, x="Fecha", y=["Tamano_Vela", "Media_Movil"],
+                  labels={"value": "Tamaño", "variable": "Serie"},
+                  title=title)
+    st.plotly_chart(fig, use_container_width=True)
+
+
+
+import matplotlib.pyplot as plt
+import streamlit as st
+
+def plot_top_bottom_volumen(df, col_use, top_n=20):
+    """
+    Genera gráficos de Top N y Bottom N activos por Volumen.
+    
+    Parámetros:
+        df (DataFrame): debe tener columnas ["Simbolo", "Volumen"]
+        top_n (int): número de activos a mostrar en top y bottom
+    """
+    # Ordenamos por volumen
+    df_sorted = df.sort_values(col_use, ascending=False)
+
+    # Top N y Bottom N
+    topN = df_sorted.head(top_n)
+    bottomN = df_sorted.tail(top_n)
+
+    figs = []
+
+    # ----- Top N -----
+    fig_top, ax_top = plt.subplots(figsize=(10,6))
+    ax_top.barh(topN["Simbolo"], topN[col_use], color="green")
+    ax_top.invert_yaxis()
+    ax_top.set_title(f"Top {top_n} activos por Volumen")
+    ax_top.set_xlabel(col_use)
+    ax_top.set_ylabel("Símbolo")
+    figs.append(fig_top)
+
+    # ----- Bottom N -----
+    fig_bottom, ax_bottom = plt.subplots(figsize=(10,6))
+    ax_bottom.barh(bottomN["Simbolo"], bottomN[col_use], color="red")
+    ax_bottom.invert_yaxis()
+    ax_bottom.set_title(f"Bottom {top_n} activos por Volumen")
+    ax_bottom.set_xlabel(col_use)
+    ax_bottom.set_ylabel("Símbolo")
+    #figs.append(fig_bottom)
+
+    return fig_top, topN["Simbolo"].values.tolist()
+
+
+import plotly.graph_objects as go
+import streamlit as st
+
+def plot_volumen_heatmap(df, col_use, top_n=50):
+    """
+    Genera un heatmap de los activos por volumen.
+    
+    Parámetros:
+        df (DataFrame): columnas ["Simbolo", "Volumen"]
+        top_n (int): número de activos a mostrar
+    """
+    # Ordenamos por volumen (de mayor a menor)
+    df_sorted = df.sort_values(col_use, ascending=False).head(top_n)
+
+    # Heatmap (1 fila, cada columna es un símbolo)
+    fig = go.Figure(data=go.Heatmap(
+        z=[df_sorted[col_use].values],  
+        x=df_sorted["Simbolo"].values,    
+        y=[col_use],                    
+        colorscale="Viridis",             # Escala de colores (puedes probar "RdYlGn" o "Plasma")
+        text=df_sorted[col_use].values, # Tooltip con valor
+        texttemplate="%{text}",           # Mostrar volumen sobre cada celda
+        hovertemplate="Activo: %{x}<br>Volumen: %{z}<extra></extra>"
+    ))
+
+    fig.update_layout(
+        title=f"Heatmap de {col_use} - Top {top_n} Activos",
+        xaxis_title="Activo",
+        yaxis_title="",
+        xaxis=dict(showticklabels=True, tickangle=45),
+        height=400
+    )
+
+    return fig, df_sorted["Simbolo"].values.tolist()
+
+
+
+def plot_volumen_bubbles(df, col_use="Volumne", top_n=50):
+    """
+    Genera un gráfico de burbujas flotantes para los activos.
+    
+    Parámetros:
+        df (DataFrame): columnas ["Simbolo", col_use]
+        col_use (str): columna de volumen a usar ("Volumne" o "Volumen_acum")
+        top_n (int): número de activos a mostrar
+    """
+    # Ordenamos y seleccionamos los más relevantes
+    df_sorted = df.sort_values(col_use, ascending=False).head(top_n)
+    st.write(f"Hay {len(df_sorted)} activos para graficar.")
+
+    # Posiciones aleatorias para dispersar las burbujas
+    np.random.seed(42)  # fijo para reproducibilidad
+    x = np.random.uniform(0, 1, len(df_sorted))
+    y = np.random.uniform(0, 1, len(df_sorted))
+
+    # Escalamos el tamaño de las burbujas
+    sizes = df_sorted[col_use] / df_sorted[col_use].max() * 2000  # factor ajustable
+
+    # Texto dentro de la burbuja (símbolo + volumen)
+    labels = [f"{s}<br>{v:,}" for s, v in zip(df_sorted["Simbolo"], df_sorted[col_use])]
+
+    fig = go.Figure()
+
+    fig.add_trace(go.Scatter(
+        x=x,
+        y=y,
+        mode="markers+text",
+        text=labels,
+        textposition="middle center",
+        marker=dict(
+            size=sizes,
+            color=df_sorted[col_use],
+            colorscale="Viridis",
+            showscale=True,
+            sizemode="area",
+            line=dict(width=2, color="DarkSlateGrey")
+        ),
+        hovertemplate="Activo: %{text}<extra></extra>"
+    ))
+
+    fig.update_layout(
+        title=f"Gráfico de Burbujas - Top {top_n} Activos ({col_use})",
+        xaxis=dict(showticklabels=False, showgrid=False, zeroline=False),
+        yaxis=dict(showticklabels=False, showgrid=False, zeroline=False),
+        height=700
+    )
+
+    return fig
+
