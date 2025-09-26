@@ -3,7 +3,6 @@ from Indicadores.Volumen import *
 from Indicadores.Direccion import *
 from Indicadores.Momento import *
 from Indicadores.Trend import *
-import tqdm
 from Indicadores.Optimizacion import *
 
 

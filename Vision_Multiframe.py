@@ -1,20 +1,9 @@
-import os
-import sys
-import pandas as pd
-#import datetime
 import streamlit as st
-from binance.spot import Spot
-from binance.client import Client
-from datetime import datetime, timedelta
-
-
-# Añadir rutas personalizadas
-#sys.path.append('/home/hector/Documentos/Escuelas/Autodidacta/Git_repositories/Trading_test')
-
-
+from binance.spot import Spot as Client 
 from GraficasPloty import * #graficar_velas, graficar_linea, 
 from Std_streamlit import  * 
-
+from Inputs.Simbolos import Obtener_Simbolos_Binance
+from Inputs.Requerimentos_streamlit import Solicita_Parametros_Indicadores
 
 
 # Configuración general
@@ -24,36 +13,36 @@ st.set_page_config(layout="wide", page_title="Analisis MultiFrame")
 API_KEY = 'tTH25XYPnXjPQnOfTHbcd8y6FGaq6QXyIUf7jbR1iisyebqq5KByMyg8KFNHgn3h'
 API_SECRET = 'fgPIxiygL5QvE5cPmopmCemxUYKQz2ThrAzFMEXz7nlPyeMcMaYnSrCHsyq62dAL'
 
-# Initialize Binance client
-client = Client(API_KEY, API_SECRET)
 
-# Obtener toda la información del exchange
-exchange_info = client.get_exchange_info()
 
-# Filtrar solo los símbolos activos del mercado spot
-simbolos_spot = [
-    s["symbol"]
-    for s in exchange_info["symbols"]
-    if s["status"] == "TRADING" and s["isSpotTradingAllowed"]
-]
-simbolos_spot = [x for x in simbolos_spot if str(x).find("USD")>=0]
+
 #simbolos_spot = simbolos_spot[:10]
 indicadores_disponibles = ["Media_Movil", "Bandas Bollinger", "RSI", "MACD", "Estocastico", "Calidad PullBack"]
 
 # Validaciones de acceso a Binance
 try:
-    cliente = Spot(key=API_KEY, secret=API_SECRET)
+    cliente = Client(key=API_KEY, secret=API_SECRET)
 except Exception as e:
     st.error("🔐 Error en autenticación con Binance. Verifica tus credenciales.")
     st.stop()
-    
+simbolos_spot = Obtener_Simbolos_Binance(cliente,mercado='spot',filtro=None)
     
     
 # Sidebar
 with st.sidebar:
     dict_grl_frame = obtener_parametros_globales_MF()
     timeframes = dict_grl_frame.keys()
-
+    c1, c2 = st.columns(2)
+    mercado = c1.selectbox("Mercado", ("Spot", "Futuros"), index=0)
+      
+    patron = c2.text_input("🔎 Filtrar por patrón en símbolo (ej: USD)", value="USDT")
+    if patron.strip() == "":
+        patron = None
+    simbolos = Obtener_Simbolos_Binance(cliente,mercado=mercado,filtro=patron)
+    
+    # Total de simbolos a buscar
+    n_sim = c1.number_input("Cuantos simbolos desea descargar?", min_value=3,max_value=len(simbolos), value=len(simbolos), help=f"Ideal para probar unos pocos simbolos tus cambios, de lo contrario descarga todo (Hay {len(simbolos)} simbolos disponibles)")
+    
 
 st.markdown(f"**Timeframes a analizar:** {', '.join(timeframes)}")
 

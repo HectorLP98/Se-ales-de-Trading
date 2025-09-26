@@ -6,10 +6,6 @@ from datetime import timedelta, datetime
 import sys
 import streamlit as st
 from Std_streamlit import obtener_min_max #contar_salidas_de_limites, Cuenta_Fair_Value_Gap
-
-# Añadir rutas personalizadas
-sys.path.append('/home/hector/Documentos/Escuelas/Autodidacta/Git_repositories/Trading_test')
-
 from Indicadores.Direccion import Medias_Moviles
 
 def generate_plot_freq_time(df,ax, col_use="ct", tipo="hour",simbolo="None"):
@@ -260,7 +256,7 @@ class GraficoVelas:
         self.graficar_rango()
         self.graficar_fvg()
         #self.graficar_swings() 
-        self.graficar_trades()
+        #self.graficar_trades()
         
         if "Media_Movil" in indicadores:
             self.graficar_medias_moviles()
@@ -531,7 +527,7 @@ def plot_top_bottom_volumen(df, col_use, top_n=20):
     fig_top, ax_top = plt.subplots(figsize=(10,6))
     ax_top.barh(topN["Simbolo"], topN[col_use], color="green")
     ax_top.invert_yaxis()
-    ax_top.set_title(f"Top {top_n} activos por Volumen")
+    ax_top.set_title(f"Top {top_n} activos por {col_use}")
     ax_top.set_xlabel(col_use)
     ax_top.set_ylabel("Símbolo")
     figs.append(fig_top)
@@ -570,7 +566,7 @@ def plot_volumen_heatmap(df, col_use, top_n=50):
         colorscale="Viridis",             # Escala de colores (puedes probar "RdYlGn" o "Plasma")
         text=df_sorted[col_use].values, # Tooltip con valor
         texttemplate="%{text}",           # Mostrar volumen sobre cada celda
-        hovertemplate="Activo: %{x}<br>Volumen: %{z}<extra></extra>"
+        hovertemplate="Activo: %{x}<br>"+str(col_use)+": %{z}<extra></extra>"
     ))
 
     fig.update_layout(

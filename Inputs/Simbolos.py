@@ -10,11 +10,11 @@ def Obtener_Simbolos_Binance(client,mercado='spot',filtro=None):
     """
     if mercado.lower() == 'futuros':
         # Obtener símbolos de futuros
-        symbols_Binance = [symbol['symbol'] for symbol in client.futures_exchange_info()['symbols'] if symbol['contractType'] == 'PERPETUAL']
+        symbols_Binance = [symbol['symbol'] for symbol in client.exchange_info()['symbols'] if symbol['contractType'] == 'PERPETUAL']
         r
     elif mercado.lower() == 'spot':
         # Obtener símbolos de spot
-        symbols_Binance = [symbol['symbol'] for symbol in client.get_exchange_info()['symbols'] if symbol['status'] == 'TRADING' and symbol['isSpotTradingAllowed']]
+        symbols_Binance = [symbol['symbol'] for symbol in client.exchange_info()['symbols'] if symbol['status'] == 'TRADING' and symbol['isSpotTradingAllowed']]
     
     simbolos = symbols_Binance.copy()
     if filtro:

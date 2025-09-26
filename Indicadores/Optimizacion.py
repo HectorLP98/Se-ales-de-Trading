@@ -1,10 +1,9 @@
 import itertools
 from multiprocessing import Pool, cpu_count
-#from Indicadores.Estrategias import Estrategias
 from tqdm import tqdm
 from Indicadores.Estrategias import *
 import matplotlib.pyplot as plt
-#from Estrategias import Estrategias
+
 
 
 

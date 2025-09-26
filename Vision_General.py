@@ -1,44 +1,40 @@
 import os
 import sys
 import pandas as pd
-#import datetime
 import streamlit as st
-from binance.spot import Spot
-from binance.client import Client
+from binance.spot import Spot as Client
+#from binance.client import Client
 from datetime import datetime, timedelta
-
+from Inputs.Simbolos import Obtener_Simbolos_Binance
+from Inputs.Requerimentos_streamlit import Solicita_Parametros_Indicadores
 from GraficasPloty import * #graficar_velas, graficar_linea, 
 from Std_streamlit import  * 
 from Estrategias.Filtros_Estrategias import *
 
 
 # Configuración general
-st.set_page_config(layout="wide", page_title="Análisis Técnico")
+st.set_page_config(layout="wide", page_title="Vision General")
 
 # Insert your Binance API key and secret
-API_KEY = 'tTH25XYPnXjPQnOfTHbcd8y6FGaq6QXyIUf7jbR1iisyebqq5KByMyg8KFNHgn3h'
-API_SECRET = 'fgPIxiygL5QvE5cPmopmCemxUYKQz2ThrAzFMEXz7nlPyeMcMaYnSrCHsyq62dAL'
-ruta_data = r"/home/hector/Documentos/Escuelas/Autodidacta/Git_repositories/Señales_Trading/intarface/Datos"
+API_KEY = 'z0wEy09JKt0gzqzBUmAUdlEgP83fgQUOUKmOdWURp3aI3qVVCfAVi3QrEowwjzNg'
+API_SECRET =  '4y26OxaTdtdcQMKmJuNt1446vh9k4Iyi9y6nayueVCeOHEUi8qppW7ioN9WJdJXd'
+ruta_data = r"./Datos/Historicos"
 
 mercado = "Spot" # Futuros, Spot
 
 if mercado == "Spot":
-    # Initialize Binance client
-    client = Client(API_KEY, API_SECRET)
-    # Obtener toda la información del exchange
-    exchange_info = client.get_exchange_info()
-    # Filtrar solo los símbolos activos del mercado spot
-    simbolos = [
-        s["symbol"]
-        for s in exchange_info["symbols"]
-        if s["status"] == "TRADING" and s["isSpotTradingAllowed"]
-    ]
+    # Validaciones de acceso a Binance
+    try:
+        cliente = Client(key=API_KEY, secret=API_SECRET)
+    except Exception as e:
+        st.error("🔐 Error en autenticación con Binance. Verifica tus credenciales.")
+        st.stop()
     
 else:
     from binance.um_futures import UMFutures
     # Usa tus claves API si es necesario
-    client = UMFutures(key=API_KEY, secret=API_SECRET)
-    exchange_info_futures = client.exchange_info()
+    cliente = UMFutures(key=API_KEY, secret=API_SECRET)
+    exchange_info_futures = cliente.exchange_info()
     # Filtrar solo los símbolos activos
     simbolos = [
         s["symbol"]
@@ -47,10 +43,6 @@ else:
     ]
 
 
-
-patron = st.text_input("🔎 Filtrar por patrón en símbolo (ej: USD)", value="USDT")
-if patron.strip() != "":
-    simbolos = [x for x in simbolos if str(x).find(patron)>=0]
 #simbolos = simbolos[:10]
 indicadores_disponibles = ["Media_Movil", "Bandas Bollinger", "RSI", "MACD", "Estocastico", "Calidad PullBack"]
 
@@ -83,15 +75,18 @@ with st.sidebar:
     rango_analisis = st.number_input("Periodos a analizar", min_value=1, max_value=10000, value=60)
     rango_analisis = (excluir_final, rango_analisis)
     
-    # Total de simbolos a buscar
-    n_sim = st.number_input("Cuantos simbolos desea descargar?", min_value=3,max_value=len(simbolos), value=len(simbolos), help="Ideal para probar unos pocos simbolos tus cambios, de lo contrario descarga todo")
+    c1, c2 = st.columns(2)
+    mercado = c1.selectbox("Mercado", ("Spot", "Futuros"), index=0)
+      
+    patron = c2.text_input("🔎 Filtrar por patrón en símbolo (ej: USD)", value="USDT")
+    if patron.strip() == "":
+        patron = None
+    simbolos = Obtener_Simbolos_Binance(cliente,mercado=mercado,filtro=patron)
     
-# Validaciones de acceso a Binance
-try:
-    cliente = Spot(key=API_KEY, secret=API_SECRET)
-except Exception as e:
-    st.error("🔐 Error en autenticación con Binance. Verifica tus credenciales.")
-    st.stop()
+    # Total de simbolos a buscar
+    n_sim = c1.number_input("Cuantos simbolos desea descargar?", min_value=3,max_value=len(simbolos), value=len(simbolos), help=f"Ideal para probar unos pocos simbolos tus cambios, de lo contrario descarga todo (Hay {len(simbolos)} simbolos disponibles)")
+    
+
 
 # Construir nombre del archivo CSV con sufijo de intervalo
 interval_suffix = interval.lower() if isinstance(interval, str) else "unknown"
@@ -142,7 +137,8 @@ if st.button("🔄 Ejecutar análisis"):
             else:
                 st.warning("⚠️ El análisis no arrojó resultados.")
         except Exception as e:
-            st.error(f"❌ Error durante el análisis: {e}")
+            error_trace = traceback.format_exc()  # Obtiene toda la traza del error
+            st.error(f"❌ Error al durante al procesar los simbolos en Vision_General:\n{error_trace}")
 
 # Mostrar filtros y tabla si hay resultados cargados o recién generados
 if 'df_resultado' in locals() and not df_resultado.empty:

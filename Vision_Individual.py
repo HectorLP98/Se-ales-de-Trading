@@ -1,19 +1,17 @@
-import os
-import sys
-import pandas as pd
 from datetime import datetime, timedelta
 import streamlit as st
-from binance.spot import Spot
-from binance.client import Client
+from binance.spot import Spot as Client
 
 from GraficasPloty import * #graficar_velas, graficar_linea, 
-from Std_streamlit import  preparar_dataset,  Poner_Indicadores, Solicita_Parametros_Indicadores, AnalizadorIndicadores
+from Std_streamlit import  preparar_dataset,  Poner_Indicadores, AnalizadorIndicadores
 from Indicadores.DominioPropio import detectar_swing_points, Contar_FVGs
 from Inputs.Simbolos import Obtener_Simbolos_Binance
+from Inputs.Requerimentos_streamlit import Solicita_Parametros_Indicadores
 from Indicadores.AccioPrecio import AnalizadorVelas
+from Estrategias.DeepDeterministicPolicyFradient import *
 
 # Configuración general
-st.set_page_config(layout="wide", page_title="Análisis Técnico")
+st.set_page_config(layout="wide", page_title="Vision Individual")
 
 # Insert your Binance API key and secret
 API_KEY = 'tTH25XYPnXjPQnOfTHbcd8y6FGaq6QXyIUf7jbR1iisyebqq5KByMyg8KFNHgn3h'
@@ -23,6 +21,7 @@ API_SECRET = 'fgPIxiygL5QvE5cPmopmCemxUYKQz2ThrAzFMEXz7nlPyeMcMaYnSrCHsyq62dAL'
 client = Client(API_KEY, API_SECRET)
 
 simbolos_spot = Obtener_Simbolos_Binance(client)
+st.write(f"Símbolos disponibles en Binance Spot: {len(simbolos_spot)}")
 # Sidebar
 with st.sidebar:
     col1, col2 = st.columns(2)
@@ -76,25 +75,19 @@ with st.sidebar:
     st.markdown(f"🕒 Fecha de inicio calculada: **{fecha_inicio}**")
 
 
-# Validaciones de acceso a Binance
-try:
-    cliente = Spot(key="3bTMORx0HLuEpVuqn3gBgYzupfOVKLPS2QkFazAsFP2sLg0ktAFxbkZa76aQ4VTv", secret="tCNjEOdRFyvlKEH9usVsclEs0izi623zU26nWQRND1Huny1zqQdJ9vBQu4etfrKg")
-except Exception as e:
-    st.error("🔐 Error en autenticación con Binance. Verifica tus credenciales.")
-    st.stop()
-
 
 # ✅ PARTE 2: Descarga Limpieza y procesamiento validación de datos
 use_binance = 1 if simbol in dict_exchange["binance"] else 0
 # Intentamos descargar los datos
-df_mayor = preparar_dataset(cliente, simbol, interval_mayor, fecha_inicio, use_binance)
+df_mayor = preparar_dataset(client, simbol, interval_mayor, fecha_inicio, use_binance)
+st.write(f"Columnas de dataset mayor: {df_mayor.columns}")
 analizador = AnalizadorVelas(df_mayor, rango_analisis)
 dict_grl_mayor = analizador.analizar()
 # Luego de hacer el analaizar extraigo la información generada.
 df_mayor = analizador.df_original
-#st.write(dict_grl_mayor)
+st.write(f"Columnas de dataset mayor: {df_mayor.columns}")
 
-df_menor = preparar_dataset(cliente, simbol, interval_menor, fecha_inicio=df_mayor.shape[0], use_binance=use_binance)
+df_menor = preparar_dataset(client, simbol, interval_menor, fecha_inicio=df_mayor.shape[0], use_binance=use_binance)
 analizador2 = AnalizadorVelas(df_menor, rango_analisis)
 
 dict_grl_menor = analizador2.analizar()
@@ -173,8 +166,6 @@ with tab1:
     else:
         fig_mayor = graficar_linea(df_mayor, ["Close"])
     
-
-
     # 📌 Análisis de rupturas de niveles para TimeFrame Menor
     st.markdown(f"### ⏱️ TimeFrame Menor: `{interval_menor}` {df_menor.shape[0]}registros")
     # 📉 Gráfico menor
@@ -190,7 +181,24 @@ with tab1:
 
 # Tabla
 with tab2:
-    st.write(df_mayor.columns)
+    features = ['Open_Time', 'Open', 'High', 'Low', 'Close', 'Volumne', 'Quote_asset_vol', 'Number_trades', 
+                'dia_num', 'mes', 'dia_mes', 'fecha', 'Volume', 'tipo', 'FVGs', 'Ruptura_Alcista', 
+                'Tipo_Ruptura', 'Ruptura_Bajista', 'Tamanio_Vela', 'Tipo_Vela', 'Swing_Alcista', 'Swing_Bajista', 'EMA_20', 
+                'SMA_200', 'CruceMM_EMA_20_SMA_200', 'DuracionTrendMM_EMA_20_SMA_200', 'Entrada_Trade', 'Tendencia_MM', 
+                'Tendencia_PullBack', 'CruceMM_Close_SMA_200', 'DuracionTrendMM_Close_SMA_200', 'CruceMM_Close_EMA_20', 
+                'DuracionTrendMM_Close_EMA_20', '%K', '%D', 'Estocastico_Senal', 'Duracion_Estocastico', 'FVGs_Falta', 'Duracion_FVGs_Falta']
+    
+    st.write(f"Columnas disponibles: {features}")
+    n = st.number_input("N-registros", min_value=1, value=10, help="Cuantos renglones se imprimen")
+    st.write(f"Últimas 10 filas de {simbol}")
+   # st.write(df_mayor.columns)
+    st.dataframe(df_mayor.tail(n).to_dict())
+    
+    # Entrenar el modelo
+    trained_agent = train_ddpg_trader(df_mayor, features, episodes=50)
+    
+    # Generar señales
+    df_mayor['signal'] = predict_signals(trained_agent, df_mayor)
     n = st.number_input("N-registros", min_value=1, value=10, help="Cuantos renglones se imprimen")
     st.write(f"Últimas 10 filas de {simbol}")
    # st.write(df_mayor.columns)

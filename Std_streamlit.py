@@ -7,12 +7,10 @@ import streamlit as st
 import sys 
 from datetime import datetime, timedelta
 import os
-
-sys.path.append('/home/hector/Documentos/Escuelas/Autodidacta/Git_repositories/Trading_test')
+import traceback
 from Indicadores.Direccion import Medias_Moviles
-from Datasets import Get_Sets_Hist
-from fn_prep import get_change_percent
-from Indicadores.Trend import putTrendDirection, CountTrend
+from Datos.Datasets import Get_Sets_Hist
+#      from fn_prep import get_change_percent
 from Indicadores.Direccion import Medias_Moviles, calcular_MACD
 from Indicadores.Momento import *
 from Indicadores.Volatilidad import calcular_bandas_bollinger
@@ -20,7 +18,7 @@ from Indicadores.DominioPropio import *
 from Estrategias.Busqueda_entry import *
 
 
-ruta_data = r"/home/hector/Documentos/Escuelas/Autodidacta/Git_repositories/Señales_Trading/intarface/Datos"
+ruta_data = r"./Datos/Historicos"
 
 def diccionario_TimeFrames(interval):
     equivalencias = {
@@ -64,33 +62,12 @@ def preparar_dataset(cliente, symbol, interval, fecha_inicio, use_binance, perio
         df["tipo"] = df.apply(lambda row: "long" if row["Open"] < row["Close"]
                               else "neutral" if row["Close"] == row["Open"] else "short", axis=1)
 
-        # Cálculo de EMAs (asume clase `Medias_Moviles` ya importada)
-        #mm = Medias_Moviles()
-        #df_ema = mm.calcular_medias_y_cruces(df["Close"], "EMA", periodos_ema)
-        #df_ema_vol = mm.calcular_medias_y_cruces(df["Volumne"], "EMA", periodos_ema, prefijo="Vol")
-#
-        ## Agregar EMAs al dataframe principal
-        #df = df.join(df_ema)
-        #df = df.join(df_ema_vol)
-#
-        ## Métricas estadísticas
-        #df = get_change_percent(df, "Close", n_periods=1)
-        #df["Close_pc_1"] = df["Close_pc_1"].shift(-1)
-        #df["dy"] = df["Close"].diff()
-        #df["Trend"] = CountTrend(df["dy"])
-#
-        ## Clasificación por tendencia
-        #df["trendClass"] = df["Trend"].apply(lambda x: None if x != 0 else 0).ffill()
-        #for t in df["trendClass"].unique():
-        #    mask = df["trendClass"] == t
-        #    df.loc[mask, "maxTrendClass"] = df.loc[mask, "High"].max()
-        #    df.loc[mask, "minTrendClass"] = df.loc[mask, "Low"].min()
 
         return df
 
     except Exception as e:
-        st.error(f"❌ Error al preparar dataset para {symbol} en intervalo {interval}: {e}")
-        return None
+        error_trace = traceback.format_exc()  # Obtiene toda la traza del error
+        st.error(f"❌ Error al preparar dataset para {symbol} en intervalo {interval}:\n{error_trace}")
 
 def formatear_diccionario_resultados(diccionario):
     """
@@ -578,43 +555,77 @@ class AnalizadorVelas:
             "ultimas_fvg_info": lista_resumen
         }
 
-    def _clasificar_vela(self, i):
+    def _clasificar_vela(self, i, pt1=0.5, pt2=0.1, pt3=0.4):
         """
-        Clasifica la vela en el índice i usando los arrays precargados en self.
-        Devuelve un string con la etiqueta.
+        (Function)
+            funcion clasifica la vela en funcion de la mechas y el cuerpo de la vela
+        (Parameters)
+            - row: diccionario o Serie de pandas (con claves: Open, Close, High, Low)
+            - open_, high, low, close: valores individuales (si no se pasa row)
+            . pt1: Porcion de la mecha mayoritaria (la parte mas grande de una mecha en proporcion al total de la vela) default 0.5, es decir la mecha debe medir al menos la mitad del total de la vela
+            - pt2: Porcion del mecha menoritaria o tolerancia. Default 0.05, es decir la mecha minoritaria debe ser a lo mas el 5% del total de la vela.
+            - pt3: Porcion de las mechas para considerarse Doji, se parte de una simetria con limite superior. Default .4, quiere decir que el cuerpo de la vela no supera el 20% para ser considerada Doji
+        (Return)
+            str: 
         """
-        open_ = self.arr_open_full[i]
-        high = self.arr_high_full[i]
-        low = self.arr_low_full[i]
-        close = self.arr_close_full[i]
-
-        cuerpo = abs(close - open_)
+        def Color_Vela(open_, close):
+            if close > open_:
+                return 1  # Vela alcista
+            elif close < open_:
+                return -1  # Vela bajista
+            else:
+                return 0  # Vela neutral
+            
+        def extrae_datos_vela(i):
+            return (self.arr_open_full[i], self.arr_high_full[i], self.arr_low_full[i], self.arr_close_full[i])
+        
+        open_, high, low, close = extrae_datos_vela(i)
+        open_ant, high_ant, low_ant, close_ant = extrae_datos_vela(i-1)
+        
         rango_total = high - low
         if rango_total == 0:
             return "Indeterminada"
 
-        # Proporciones
-        cuerpo_pct = cuerpo / rango_total
-        mecha_superior = high - max(open_, close)
-        mecha_inferior = min(open_, close) - low
-        mecha_superior_pct = mecha_superior / rango_total
-        mecha_inferior_pct = mecha_inferior / rango_total
-
-        # Clasificación
-        if cuerpo_pct < 0.1:
+        # Porcion Total de la mecha
+        pt = high - low
+        # Porcion mecha inferior
+        pmi = min(close, open_) - low
+        # Porcion mecha superior
+        pms = high - max(close, open_)
+        # Porcion cuerpo de vela
+        pcv = abs(close - open_)
+        # Color de la vela
+        color = Color_Vela(open_, close)
+        color_ant = Color_Vela(open_ant, close_ant)
+        
+        if pt == 0 :
+            return "Plana"
+        elif pmi >= pt1*pt and pms <= pt2*pt and color==1:
+            return "Martillo"
+        elif pmi <= pt2 * pt and pms >= pt1*pt and color==1:
+            return "Martillo_Inv"
+        if pmi >= pt1*pt and pms <= pt2*pt and color==-1:
+            return "Hang_Man"
+        elif pmi <= pt2 * pt and pms >= pt1*pt and color==-1:
+            return "Estrella_Fug"
+        elif pmi >= pt3*pt and pms >= pt3*pt:
             return "Doji"
-        elif cuerpo_pct > 0.9:
-            return "Marubozu Alcista" if close > open_ else "Marubozu Bajista"
-        elif mecha_inferior_pct > 0.6 and cuerpo_pct < 0.3:
-            return "Hammer"
-        elif mecha_superior_pct > 0.6 and cuerpo_pct < 0.3:
-            return "Shooting Star"
-        elif mecha_inferior_pct > 0.4 and mecha_superior_pct > 0.4:
-            return "Spinning Top"
-        elif mecha_inferior_pct < 0.2 and mecha_superior_pct > 0.5:
-            return "Inverted Hammer" if close > open_ else "Hanging Man"
+        elif pcv >= 0.95*pt:
+            return "Cuerpo_Lleno"
+        elif color==1 and color_ant ==-1 and open_ <= close_ant and close >= open_ant:
+            return "Engulfing_Alcista"
+        elif color==-1 and color_ant==1 and open_ >= close_ant and close <= open_ant:
+            return "Engulfing_Bearish"
+        elif color==1 and color_ant ==-1 and high <= open_ant and low >= close_ant:
+            return "Harami_Alcista"
+        elif color==-1 and color_ant==1 and high <= close_ant and low >= open_ant:
+            return "Harami_Bearish"
+        elif color_ant==1 and open_ > close_ant and pmi >= pt3*pt and pms >= pt3*pt:
+            return "Doji start Bearish"
+        elif color_ant==-1 and open_ < close_ant and pmi >= pt3*pt and pms >= pt3*pt:
+            return "Doji start Bullish"
         else:
-            return "Vela Normal"
+            return "N/A"
 
 
     def analizar(self):
@@ -655,8 +666,7 @@ class AnalizadorVelas:
                 self._contar_rupturas(i, min_low, max_high)
                 # Clasificar vela
                 #clasificacion = self._clasificar_vela(i)
-                tipo = Tipo_Vela(open_=self.arr_open_full[i], high=self.arr_high_full[i], 
-                                 low=self.arr_low_full[i], close=self.arr_close_full[i], pt1=0.6, pt2=0.05, pt3=0.4)
+                tipo = self._clasificar_vela(self, i, pt1=0.6, pt2=0.05, pt3=0.4)
                 clasificacion_vela[str(fecha_actual)]= {"Vela_Ind":tipo}
         
         # Swing points
@@ -679,12 +689,20 @@ class AnalizadorVelas:
 def analizar_simbolos(simbolos_spot, cliente, interval, fecha_inicio, rango_analisis=(10, 50), indicadores=[], dict_parametros={}):
     import traceback
     resultados = []
-    st.write("Entro a analizar simbolos")
-    for simbolo in tqdm.tqdm(simbolos_spot):
+    if len(simbolos_spot) <150: update_interval = 1
+    else:    update_interval = int(len(simbolos_spot)/100)
+    # Barra de progreso y contenedor de resultados
+    progress_bar = st.progress(0)
+    results_container = st.empty()
+    st.write(f"Entro a analizar simbolos, hay {len(simbolos_spot)} simbolos a analizar")
+
+    for i, simbolo in tqdm.tqdm(enumerate(simbolos_spot)):
+        # Agregar resultado al DataFrame (solo algunos para no saturar)
+        if i % update_interval == 0:
+            progress_bar.progress(i / len(simbolos_spot))
         try:
             # Preparar el dataset
             df_mayor = preparar_dataset(cliente, simbolo, interval, fecha_inicio, use_binance=1)
-
             # Analizador de velas
             analVelas = AnalizadorVelas(df_mayor, rango_analisis=rango_analisis)
             
@@ -704,7 +722,7 @@ def analizar_simbolos(simbolos_spot, cliente, interval, fecha_inicio, rango_anal
             # Ultimas 3 velas
             ultimos_3_velas = [
                 dict_grl["Velas"][k]["Vela_Ind"]
-                for k in sorted(dict_grl["Velas"].keys(), key=lambda x: pd.to_datetime(x))[-3:]
+                for k in sorted(dict_grl["Velas"].keys(), key=lambda x: pd.to_datetime(x))[-5:]
             ]
 
             # Conteo de F
@@ -748,9 +766,10 @@ def analizar_simbolos(simbolos_spot, cliente, interval, fecha_inicio, rango_anal
             #print("paso el dict")
         
         except Exception as e:
-            print(f"\n❌ Error con el símbolo {simbolo}: {type(e).__name__}: {e}")
-            traceback.print_exc()
+            error_trace = traceback.format_exc()  # Obtiene toda la traza del error
+            st.error(f"❌ Error al durante el analisis de simbolos para {simbolo} en intervalo {interval}:\n{error_trace}")
             continue
+    progress_bar.progress(1.0)
 
     # Convertir a DataFrame final
     df_resultado = pd.DataFrame(resultados)
@@ -996,72 +1015,6 @@ def aplicar_filtros_orden(df: pd.DataFrame, filtros, ordenamientos):
     return df_filtrado
 
 
-def Solicita_Parametros_Indicadores():
-    parametros_indicadores = {}
-    
-    # Selector múltiple de indicadores técnicos
-    indicadores_disponibles = ["Media_Movil", "Bandas Bollinger", "RSI", "MACD", "Estocastico", "Calidad_PullBack"]
-
-    indicadores = st.multiselect(
-        "📊 Selecciona los indicadores técnicos a mostrar:",
-        options=indicadores_disponibles,
-        default=[],
-        help="Puedes elegir más de un indicador."
-    )
-
-    if "Media_Movil" in indicadores:
-        st.markdown(f"### Medias Moviles")
-        c1, c2 = st.columns(2)
-        tipo_corta = c1.selectbox(
-            "Tipo de media corta",
-            ["EMA", "SMA", "WMA"],
-            index=0,
-            help="Selecciona el tipo de media móvil para el periodo corto."
-        )
-
-        tipo_larga = c2.selectbox(
-            "Tipo de media larga",
-            ["EMA", "SMA", "WMA"],
-            index=1,
-            help="Selecciona el tipo de media móvil para el periodo largo."
-        )
-
-        periodo_corta = c1.number_input(
-            "Periodo media corta",
-            min_value=1,
-            max_value=500,
-            value=20,
-            help="Define cuántos periodos usará la media móvil corta."
-        )
-
-        periodo_larga = c2.number_input(
-            "Periodo media larga",
-            min_value=1,
-            max_value=500,
-            value=200,
-            help="Define cuántos periodos usará la media móvil larga."
-        )
-        parametros_indicadores["Media_Movil"] = (tipo_corta, tipo_larga, periodo_corta, periodo_larga)
-    if "Estocastico" in indicadores:
-        st.markdown(f"### Estocastico")
-        c1, c2 = st.columns(2)
-        n = c1.number_input("n:", value=14, help="Es el período usado para calcular %K.")
-        d = c2.number_input("d:", value=3, help="Es el período de suavizado de %K para calcular %D.")
-        parametros_indicadores["Estocastico"] = (n,d)
-    if "Calidad_PullBack" in indicadores:
-        st.markdown(f"### Calidad Pull Back")
-        c1, c2 = st.columns(2)
-        window = c1.number_input("Window Cruces", min_value=5, value=20, help="Toma como referencia temporal, cuenta la cantidad de cruces el ultimos w-periodos")
-        tresh = c2.number_input("Treshold rango", min_value=0.00001, value=0.2, help="Este sirve para medir que tanto se ha movido sginificativamente con respecto a la vela anterior hace_: rango = (h - l)/l*100 if rango < threshold:")
-        parametros_indicadores["IQP"] = [window, tresh]
-        
-    if "RSI" in indicadores:
-        st.markdown(f"### RSI")
-        per = st.number_input("Periodos", help="Cantidad de periodos que se usan para calcualr el RSI",
-                        min_value=3,value=14)
-        parametros_indicadores["RSI"] = per
-        
-    return parametros_indicadores
 
 def Poner_Indicadores(df, parametros_indicadores):
     cols_indicadores = {}
@@ -1139,7 +1092,7 @@ def cargar_df_existente(intervalo):
     
 def generar_df_nuevo(simbolo, intervalo, fecha_inicio, rango_analisis, dict_parametros, cliente):
     interval_suffix = intervalo.lower()
-    path = f"/home/hector/Documentos/Escuelas/Autodidacta/Git_repositories/Trading_test/Data/Analisis_simbolos_{interval_suffix}.csv"
+    path = f"{ruta_data}/Analisis_simbolos_{interval_suffix}.csv"
     try:
         df = analizar_simbolos([simbolo], cliente, intervalo, fecha_inicio, rango_analisis=rango_analisis, dict_parametros=dict_parametros)
         if not df.empty:
@@ -1149,7 +1102,8 @@ def generar_df_nuevo(simbolo, intervalo, fecha_inicio, rango_analisis, dict_para
             st.warning(f"⚠️ Análisis para `{intervalo}` no arrojó resultados.")
         return df
     except Exception as e:
-        st.error(f"❌ Error durante análisis de `{intervalo}`: {e}")
+        error_trace = traceback.format_exc()  # Obtiene toda la traza del error
+        st.error(f"❌ Error al generar nuevo df para {simbolo} en intervalo {intervalo  }:\n{error_trace}")
         return pd.DataFrame()
     
 def forzar_actualizacion_dataframes(simbolos, dict_grl_frame, cliente, dict_parametros):    
